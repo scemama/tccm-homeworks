@@ -88,7 +88,7 @@ return etot;
 }
 
 double T(size_t Natoms,
-	double** velocity,
+	double* velocity,
 	double* mass){
 
 	double ektemp;
@@ -98,21 +98,56 @@ double T(size_t Natoms,
 	double veltemp;
 
 	for (size_t i = 0; i < Natoms; i++){
-		if (velocity[i] < 0.00001){
-			continue;
-		}
-		else{
-			veltemp = velocity[i];
-			t3 = pow(veltemp,2);
+		veltemp = velocity[i];
+		t3 = pow(veltemp,2);
 		double	t4 = mass[i] * t3;
-			ektemp = 1/2 * t4;
-			printf("EKtemp = %lf\n", ektemp);
-			ektot += ektemp;
-			printf("EKtot = %lf\n", ektot);
-		}
+		ektemp = 0.5 * t4;
+	//	printf("EKtemp = %lf\n", ektemp);
+		ektot += ektemp;
+	//	printf("EKtot = %lf\n", ektot);
+		
 	}
 }
 
+void compute_acc(double epsilon,
+	double sigma,
+	size_t Natoms,
+	double** coord,
+	double* mass,
+	double** distance,
+	double** acceleration){
+	double U;
+	double t5, t6, epsr, sigr;
+	double ax, ay, az;
+
+
+	for (size_t i = 0; i < Natoms ; i++){
+		for (size_t j = 0; j < Natoms; j++){
+			if ( distance[i][j] < 0.001){
+				continue;}
+			else{
+			sigr = sigma / distance[j][i];
+			epsr = epsilon / distance [j][i];
+			t5 = pow(sigr,6);
+			t6 = pow(sigr,12);
+			U = 24 * epsr * (t5 - t6);
+	//		printf ("i= %zu\n", i);
+	//		printf ("j = %zu\n", j);
+	//		printf ("U = %lf\n", U);
+			ax += (-1.0/mass[i]) * U * ((coord[i][0] - coord[j][0]) / distance[i][j]) ;
+	//		printf ("ax = %fl\n", ax);
+			ay += (-1.0/mass[i]) * U * ((coord[i][1] - coord[j][1]) / distance[i][j]) ;
+	//		printf ("ay = %fl\n", ay);
+			az += (-1.0/mass[i]) * U * ((coord[i][2] - coord[j][2]) / distance[i][j]) ;
+	//		printf ("az = %fl\n", az);
+			acceleration[i][0] = ax;
+	        	acceleration[i][1] = ay;
+		        acceleration[i][2] = az;}
+		}
+
+
+	}
+}
 
 
 
@@ -135,25 +170,32 @@ int main(){
 	compute_distances(Natoms, coord, distance);
 
 	printf("Nat = %zu\n", Natoms); // Printing Natoms and distance to check if they are correct
+	printf("Distances Matrix: \n");
 	for (size_t i = 0; i < Natoms; i++) {
 	       for (size_t j = 0; j < Natoms; j++) {
         	   printf("%lf ", distance[i][j]);
-	       }
-	}
+		}
+	printf("\n");}
 
 
 	double epsilon = 0.0661; //j/mol 
 	double sigma = 0.3345; //nm
 	double etot = V(epsilon, sigma, Natoms, distance);
 	printf("V = %lf\n", etot);
-	
-	double** velocity = malloc_2d(3, Natoms);
+
+	double* velocity = (double*)malloc(Natoms * sizeof(double)); // Here we allocate memory for mass, coordinates and distance variables
+	//double** velocity = malloc_2d(3, Natoms);
 	double ektot = T(Natoms, mass, velocity);
 	printf("T = %lf\n", ektot);
 
-
-
-
+	double** acceleration = malloc_2d(Natoms, 3);
+	compute_acc(epsilon, sigma, Natoms, coord, mass, distance, acceleration);
+	printf("Acceleration Matrix: \n");
+	for (size_t i = 0; i < Natoms; i++) {
+               for (size_t j = 0; j < Natoms; j++) {
+                   printf("%lf ", acceleration[i][j]);
+                }
+        printf("\n");}
 
 
 
@@ -174,6 +216,6 @@ int main(){
 free_2d(coord); // Freeing the memory where were the variables
 free_2d(distance);
 free(mass);
-free_2d(velocity);
+free(velocity);
 
 }
