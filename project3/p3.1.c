@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-
-
 // Definition of the functions
 size_t read_Natoms(FILE* file){   // Reads the number of atoms from the input
 	size_t Natoms;
@@ -39,6 +37,30 @@ void compute_distances(size_t Natoms, // This function calculates the distance b
 	}
 }
 
+double** malloc_2d(size_t m, size_t n) {
+	double** a = malloc(m*sizeof(double*));
+	if (a == NULL) {
+		perror("Error allocating the memory");
+	return NULL;
+}
+	a[0] = malloc(n*m*sizeof(double));
+	if (a[0] == NULL) {
+		free(a);
+	return NULL;
+}
+	for (size_t i=1 ; i<m ; i++) {
+		a[i] = a[i-1]+n;
+	}
+	return a;
+}
+
+void free_2d(double** a) {
+	free(a[0]);
+	a[0] = NULL;
+	free(a);
+}
+
+
 
 int main(){
 	FILE* file = fopen("inp.txt", "r");
@@ -48,56 +70,27 @@ int main(){
 	}
 
 	size_t Natoms = read_Natoms(file);
+	
+	double* mass = (double*)malloc(Natoms * sizeof(double));
+	double** coord = malloc_2d(Natoms, 3);
+	double** distance = malloc_2d(Natoms,3);
 
-	double** malloc_2d(size_t m, size_t n) {
-		double** distance = malloc(m*sizeof(double*));
-		if (distance == NULL) {
-		return NULL;
-}
-	distance[0] = malloc(n*m*sizeof(double));
-	if (distance[0] == NULL) {
-		free(distance);
-	return NULL;
-}
-
-	for (size_t i=1 ; i<m ; i++) {
-		distance[i] = distance[i-1]+n;
-}
-	return distance;
-}
+	read_molecule(file, Natoms, coord, mass);
+	
+	compute_distances(Natoms, coord, distance);
 
 
-void free_2d(double** distance) {
-	free(distance[0]);
-	distance[0] = NULL;
-	free(distance);
-}
-
-double** coord = (double**)malloc(Natoms * sizeof(double*));
-    for (size_t i = 0; i < Natoms; i++) {
-        coord[i] = (double*)malloc(3 * sizeof(double)); // 3 coordenadas por átomo
-    }
-
-double* mass = (double*)malloc(Natoms * sizeof(double));
-
-double** distance = (double**)malloc(Natoms * sizeof(double*));
-    for (size_t i = 0; i < Natoms; i++) {
-        distance[i] = (double*)malloc(Natoms * sizeof(double));
-    }
-
-read_molecule(file, Natoms, coord, mass);
-
-compute_distances(Natoms, coord, distance);
-
-printf("Nat = %u\n", Natoms);
+printf("Nat = %zu\n", Natoms);
 for (size_t i = 0; i < Natoms; i++) {
        for (size_t j = 0; j < Natoms; j++) {
            printf("%lf ", distance[i][j]);
        }
        printf("\n");
 }
+
+
+free_2d(coord);
+free_2d(distance);
+free(mass);
+
 }
-
-
-
-
