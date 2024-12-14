@@ -90,14 +90,13 @@ double T(size_t Natoms,
 	double* mass){
 
 	double ektot= 0.0;
+
 	double t4;
 
 	for (size_t i = 0; i < Natoms; i++){
 		double t3 = pow(velocity[i][0], 2) + pow(velocity[i][1],2) + pow(velocity[i][2], 2);
 		t4 += mass[i] * t3;
 		ektot = 0.5 * t4;
-	//	printf("EKtot = %lf\n", ektot);
-		
 	}
 	return ektot;
 }
@@ -137,6 +136,7 @@ double** compute_acc(double epsilon,
 //			free(ax);
 //			free(ay);
 //			free(az);
+
 		}
 	}
 	return acceleration;
@@ -146,6 +146,7 @@ double** compute_acc(double epsilon,
  double** compute_pos(size_t Natoms,
 		double** coord,
 		double** velocity,
+
 		double** acceleration,
 		double tstep){
 	double** coordnext = malloc_2d(Natoms, 3);
@@ -156,7 +157,6 @@ double** compute_acc(double epsilon,
 	}
 	return coordnext;
  }
-
 
  double** compute_vel(size_t Natoms,
                 double** velocity,
@@ -234,7 +234,7 @@ int main(){
 
 	double** velocity = malloc_2d(Natoms, 2); // Here we allocate memory for mass, coordinates and distance variables
 	double ektot = T(Natoms, velocity, mass);
-	printf("T = %lf\n", ektot);
+
 
 	double** acceleration = malloc_2d(Natoms, 3);
 	acceleration = compute_acc(epsilon, sigma, Natoms, coord, mass, distance);
@@ -247,9 +247,9 @@ int main(){
 	}
 	
 	double tstep = 0.2; //fs
-	
-// 	double** coordnext = malloc_2d(Natoms, 3);
+
  	double** coordnext = compute_pos(Natoms, coord, velocity, acceleration, tstep);
+
         printf("Postion n+1 Matrix: \n");
         for (size_t i = 0; i < Natoms; i++) {
                for (size_t j = 0; j < Natoms; j++) {
@@ -259,10 +259,12 @@ int main(){
 
 	double** accnext = malloc_2d(Natoms, 3);
 	double** velnext = compute_vel(Natoms, velocity, acceleration, coordnext, tstep, epsilon, sigma, mass, distance);
+
   	printf("Vel n+1 Array: \n");
         for (size_t i = 0; i < Natoms; i++) {
 	     	printf("%lf", velnext[i]);
         printf("\n");}
+
 
 
 	// VERLET ALGORITHMi
@@ -314,6 +316,9 @@ int main(){
 		write_xyz(output, (i+1) ,  Natoms, coordnext, "Ar", ektot, etot);
 		}
 	}
+
+		coord = coordnext;
+		velocity = velnext;
 
 free_2d(coord); // Freeing the memory where were the variables
 free_2d(distance);
