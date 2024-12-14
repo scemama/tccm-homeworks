@@ -66,89 +66,138 @@ double V(double epsilon, // Lennard-Jones potential energy function
 	double t1; // t1 = (sigma/r)**12
 	double t2; // t2 = (sigma/r)**6
 	double etemp; // saves the operation 4*epsilon*(t1-t2) 
-	double etot; // sums up all the potential energies of each iteration
+	double etot = 0.0; // sums up all the potential energies of each iteration
 
 	for (size_t i = 0; i < Natoms; i++){
 		for (size_t j = 0; j < Natoms ; j++){
 			if (distance[i][j] < 0.00001){;
 				continue;
 		}
-			else{
 				sigr = sigma / distance[i][j];
 				t1 = pow(sigr, 12);
 				t2 = pow(sigr, 6);
-				etemp=4*epsilon*(t1-t2);
+				etemp= 4 * epsilon * (t1-t2);
 			//	printf("Etemp = %lf\n", etemp); Used to track if the loop is correct
 				etot += etemp;
 			//	printf("Etot = %lf\n", etot); Used to track if the loop is correct
-			}
 		}
 	}
 return etot;
 }
 
 double T(size_t Natoms,
-	double* velocity,
+	double** velocity,
 	double* mass){
 
-	double ektemp;
-	double ektot;
-	double t3;
+	double ektot= 0.0;
 	double t4;
-	double veltemp;
 
 	for (size_t i = 0; i < Natoms; i++){
-		veltemp = velocity[i];
-		t3 = pow(veltemp,2);
-		double	t4 = mass[i] * t3;
-		ektemp = 0.5 * t4;
-	//	printf("EKtemp = %lf\n", ektemp);
-		ektot += ektemp;
+		double t3 = pow(velocity[i][0], 2) + pow(velocity[i][1],2) + pow(velocity[i][2], 2);
+		t4 += mass[i] * t3;
+		ektot = 0.5 * t4;
 	//	printf("EKtot = %lf\n", ektot);
 		
 	}
+	return ektot;
 }
 
-void compute_acc(double epsilon,
+double** compute_acc(double epsilon,
 	double sigma,
 	size_t Natoms,
 	double** coord,
 	double* mass,
-	double** distance,
-	double** acceleration){
+	double** distance){
+	double** acceleration = malloc_2d(Natoms, 3);
 	double U;
 	double t5, t6, epsr, sigr;
 	double ax, ay, az;
 
-
+	compute_distances(Natoms, coord, distance);
 	for (size_t i = 0; i < Natoms ; i++){
 		for (size_t j = 0; j < Natoms; j++){
 			if ( distance[i][j] < 0.001){
 				continue;}
-			else{
-			sigr = sigma / distance[j][i];
-			epsr = epsilon / distance [j][i];
+			sigr = sigma / distance[i][j];
+			epsr = epsilon / distance [i][j];
 			t5 = pow(sigr,6);
 			t6 = pow(sigr,12);
-			U = 24 * epsr * (t5 - t6);
-	//		printf ("i= %zu\n", i);
-	//		printf ("j = %zu\n", j);
-	//		printf ("U = %lf\n", U);
-			ax += (-1.0/mass[i]) * U * ((coord[i][0] - coord[j][0]) / distance[i][j]) ;
-	//		printf ("ax = %fl\n", ax);
-			ay += (-1.0/mass[i]) * U * ((coord[i][1] - coord[j][1]) / distance[i][j]) ;
-	//		printf ("ay = %fl\n", ay);
-			az += (-1.0/mass[i]) * U * ((coord[i][2] - coord[j][2]) / distance[i][j]) ;
-	//		printf ("az = %fl\n", az);
-			acceleration[i][0] = ax;
-	        	acceleration[i][1] = ay;
-		        acceleration[i][2] = az;}
+			U = 24 * epsr * (t5 - 2 * t6);
+			ax = (-1.0 / mass[i]) * U * ((coord[i][0] - coord[j][0]) / distance[i][j]) ;
+			ay = (-1.0 / mass[i]) * U * ((coord[i][1] - coord[j][1]) / distance[i][j]) ;
+			az = (-1.0 / mass[i]) * U * ((coord[i][2] - coord[j][2]) / distance[i][j]) ;
+	  		acceleration[i][0] += ax;
+	  		acceleration[i][1] += ay;
+	  		acceleration[i][2] += az;
+//			free(sigr);
+//			free(epsr);
+//			free(U);
+//			free(t5);
+//			free(t6);
+//			free(ax);
+//			free(ay);
+//			free(az);
 		}
-
-
 	}
+	return acceleration;
 }
 
+
+ double** compute_pos(size_t Natoms,
+		double** coord,
+		double** velocity,
+		double** acceleration,
+		double tstep){
+	double** coordnext = malloc_2d(Natoms, 3);
+	for (size_t i = 0; i < Natoms ; i++){
+		for (size_t j = 0; j < Natoms ; j++){			
+			coordnext[i][j] = coord[i][j] + (velocity[i][j] * tstep) + acceleration[i][j] * (pow(tstep, 2) / 2.0) ;
+		}
+	}
+	return coordnext;
+ }
+
+
+ double** compute_vel(size_t Natoms,
+                double** velocity,
+                double** acceleration,
+		double** coordnext,
+                double tstep,
+		double epsilon,
+		double sigma,
+		double* mass,
+		double** distance){
+		double** velnext = malloc_2d(Natoms, 3);
+	 	double** accnext = malloc_2d(Natoms, 3);
+		accnext = compute_acc(epsilon, sigma, Natoms, coordnext, mass, distance);
+        for (size_t i = 0; i < Natoms ; i++){
+                for (size_t j = 0; j < Natoms ; j++){
+                        velnext[i][j] = velocity[i][j] + 0.5 * (acceleration[i][j] + accnext[i][j]) * tstep ;
+                }
+        }
+          return velnext;
+ }
+
+void write_xyz(FILE* file, size_t it, size_t Natoms, double** coord, const char* atom_symbol, 
+               double ektot, double etot) {
+    // Calcula la energía total
+    double e = ektot + etot;
+
+//    fprintf(file, "Iteration number: %zu\n", it);
+
+    // Escribe el número de átomos
+    fprintf(file,"%zu\n", Natoms);
+
+    // Escribe el comentario con las energías
+    fprintf(file, "Kinetic Energy: %.3f, Potential Energy: %.3f, Total Energy: %.3f\n", 
+            ektot, etot, e);
+
+    // Escribe las coordenadas de cada átomo
+    for (size_t i = 0; i < Natoms; i++) {
+        fprintf(file, "%s %.5f %.5f %.5f\n", 
+                atom_symbol, coord[i][0], coord[i][1], coord[i][2]);
+    }
+}
 
 
 
@@ -183,35 +232,88 @@ int main(){
 	double etot = V(epsilon, sigma, Natoms, distance);
 	printf("V = %lf\n", etot);
 
-	double* velocity = (double*)malloc(Natoms * sizeof(double)); // Here we allocate memory for mass, coordinates and distance variables
-	//double** velocity = malloc_2d(3, Natoms);
-	double ektot = T(Natoms, mass, velocity);
+	double** velocity = malloc_2d(Natoms, 2); // Here we allocate memory for mass, coordinates and distance variables
+	double ektot = T(Natoms, velocity, mass);
 	printf("T = %lf\n", ektot);
 
 	double** acceleration = malloc_2d(Natoms, 3);
-	compute_acc(epsilon, sigma, Natoms, coord, mass, distance, acceleration);
+	acceleration = compute_acc(epsilon, sigma, Natoms, coord, mass, distance);
 	printf("Acceleration Matrix: \n");
 	for (size_t i = 0; i < Natoms; i++) {
                for (size_t j = 0; j < Natoms; j++) {
                    printf("%lf ", acceleration[i][j]);
                 }
+        printf("\n");
+	}
+	
+	double tstep = 0.2; //fs
+	
+// 	double** coordnext = malloc_2d(Natoms, 3);
+ 	double** coordnext = compute_pos(Natoms, coord, velocity, acceleration, tstep);
+        printf("Postion n+1 Matrix: \n");
+        for (size_t i = 0; i < Natoms; i++) {
+               for (size_t j = 0; j < Natoms; j++) {
+                   printf("%lf ", coordnext[i][j]);
+                }
+        printf("\n");}
+
+	double** accnext = malloc_2d(Natoms, 3);
+	double** velnext = compute_vel(Natoms, velocity, acceleration, coordnext, tstep, epsilon, sigma, mass, distance);
+  	printf("Vel n+1 Array: \n");
+        for (size_t i = 0; i < Natoms; i++) {
+	     	printf("%lf", velnext[i]);
         printf("\n");}
 
 
+	// VERLET ALGORITHMi
+//	FILE* file = fopen("inp.txt", "r"); //Opens the file
+//        if (file == NULL){
+//                perror("Error opening the file");
+//                return 1;
+//        }
+//
+//        size_t Natoms = read_Natoms(file); // Read the number of atoms with the previous function
+//
+//        double* mass = (double*)malloc(Natoms * sizeof(double)); // Here we allocate memory for mass, coordinates and distance variables
+//        double** coord = malloc_2d(Natoms, 3);
+//        double** distance = malloc_2d(Natoms,3);
+//
+//        read_molecule(file, Natoms, coord, mass); // Obtaining the variables
 
+	int steps = 2000;
+	int i, j, k ;
+	FILE* output = fopen("trajectory3.xyz", "w");
+	    if (output == NULL) {
+	        perror("Error opening file");
+	    return 1;
+	    }
+	for (i = 0 ; i < steps ; i++){
+		compute_distances(Natoms, coord, distance);
+		double etot = V(epsilon, sigma, Natoms, distance);
+//	        printf ("V = %lf\n", etot);
+		double ektot = T(Natoms, velocity, mass);
+//		printf ("T = %lf\n", ektot);
+//	        printf ("E = %lf\n", ektot + etot);
+		acceleration = compute_acc(epsilon, sigma, Natoms, coord, mass, distance);
+		coordnext = compute_pos(Natoms, coord, velocity, acceleration, tstep);
+		accnext = compute_acc(epsilon, sigma, Natoms, coordnext, mass, distance);
+		velnext = compute_vel(Natoms, velocity, acceleration, coordnext, tstep, epsilon, sigma, mass, distance);
+		coord = coordnext;
+		velocity = velnext;
 
-
-
-
-
-
-
-
-
-
-
-
-
+		if ((i + 1) % 50 == 0){ 
+//	        printf ("E = %lf\n", ektot + etot);
+//		printf ("Iteration number = %zu\n", i+1);
+//		printf ("Position Matrix: \n");
+//		for (j = 0; j < Natoms ; j++){
+//                        for (k = 0 ; k < Natoms ; k++){
+//				 printf("%lf ", coordnext[j][k]);
+//	                }
+//		       	printf("\n");
+//		}
+		write_xyz(output, (i+1) ,  Natoms, coordnext, "Ar", ektot, etot);
+		}
+	}
 
 free_2d(coord); // Freeing the memory where were the variables
 free_2d(distance);
